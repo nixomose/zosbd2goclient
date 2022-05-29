@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LGPL-2.1
+// Copyright (C) 2021-2022 stu mark
+
 /* Package zosbd2_stree_v_storage_mechanism exists to make the lint warning go away
 
 this class implements the zosbd2 storage mechanism interface for stree

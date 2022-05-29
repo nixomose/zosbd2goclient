@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: LGPL-2.1
+// Copyright (C) 2021-2022 stu mark
+
+
 // Package zosbd2interfaces has a package comment
 package zosbd2interfaces
 

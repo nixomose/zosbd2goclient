@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LGPL-2.1
+// Copyright (C) 2021-2022 stu mark
+
 /* This module handles the (at the moment) single threaded shuttling of data between the block device
 via it's handle_id to the Disk thing it is passed. */
 
