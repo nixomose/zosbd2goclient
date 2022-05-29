@@ -1,0 +1,9 @@
+{
+	"go.alternateTools": {
+		"dlv": "/home/nixo/git/go/nixomose/zosbd2goclient/.vscode/dlv-sudo.sh",
+		"dlv-dap": "/home/nixo/git/go/nixomose/zosbd2goclient/.vscode/dlv-sudo.sh"
+	},
+	"go.delveConfig": {
+		"debugAdapter": "legacy"
+	}
+}
