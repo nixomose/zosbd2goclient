@@ -12,7 +12,7 @@ go 1.17
 
 require (
 	github.com/nixomose/nixomosegotools v0.0.0-20220529231952-c38fcdca5407
-	github.com/nixomose/stree_v v0.0.0-20220529231948-3e2b74a87afb
+	github.com/nixomose/stree_v v0.0.0-20220529234753-57276d134ab1
 )
 
 require (
