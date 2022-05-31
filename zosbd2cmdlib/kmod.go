@@ -157,7 +157,8 @@ func (this *Kmod) Open_bd(device_name string) (tools.Ret, *os.File) {
 	var err error
 	fdout, err = os.OpenFile(device_name, os.O_RDWR, device_filemode)
 	if err != nil {
-		return tools.Error(this.m_log, "unable to open block control device ", device_name, ", err: ", err), nil
+		return tools.Error(this.m_log, "unable to open block control device ", device_name, ", err: ", err,
+			". Did you load the zosbd2 kernel module? clone and install from here: https://github.com/nixomose/zosbd2"), nil
 	}
 	return nil, fdout
 }
