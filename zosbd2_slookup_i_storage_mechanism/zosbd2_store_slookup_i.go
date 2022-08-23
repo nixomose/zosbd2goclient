@@ -197,7 +197,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Read_block(start_in_bytes uint64
 	return nil
 
 }
-xxxxxxxz
+
 func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint64, length uint32, data []byte) tools.Ret {
 	// swiped from objectstore.java
 
