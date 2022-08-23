@@ -27,6 +27,8 @@ so it goes
 
 local block device -> storage mechanism (slookup_i) -> backingstore (file/block device/etc)
 
+slookup is a bit simpler than stree_v. there are no keys, it's just a block number.
+
 */
 package zosbd2_slookup_i_storage_mechanism
 
@@ -48,45 +50,23 @@ type Zosbd2_slookup_i_storage_mechanism struct {
 var _ zosbd2interfaces.Storage_mechanism = &Zosbd2_slookup_i_storage_mechanism{}
 var _ zosbd2interfaces.Storage_mechanism = (*Zosbd2_slookup_i_storage_mechanism)(nil)
 
-func New_zosbd2_storage_mechanism(log *tools.Nixomosetools_logger, stree *slookup_i_lib.slookup_i,
+func New_zosbd2_storage_mechanism(log *tools.Nixomosetools_logger, slookup_i *slookup_i_lib.slookup_i,
 	data_pipeline *list.List) *Zosbd2_slookup_i_storage_mechanism {
 	var z Zosbd2_slookup_i_storage_mechanism
 	z.log = log
-	z.rawstore = stree
+	z.rawstore = slookup_i
 	z.data_pipeline = data_pipeline
 	return &z
 }
 
-func Get_key_length() uint32 {
-	var key_from_block_num string = Generate_key_from_block_num(0)
-	return uint32(len(key_from_block_num))
-}
 
-func /* (this *Zosbd2_slookup_i_storage_mechanism) */ Generate_key_from_block_num(block_num uint64) string {
-	/* either string or byte array, return a fixed length thing that represents this block number.
-	     for now a string will be easier.
-			 longer term we will make this a hash that will insert into a tree more evenly
-			 but for the first go, this will do.*/
-
-	// var key string = fmt.Sprintf("%020d", block_num)
-	var ba = make([]byte, 8)
-	binary.LittleEndian.PutUint64(ba, block_num)
-	return string(ba)
-}
-
-func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_key string, writebuffer []byte,
+func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_num uint32, writebuffer []byte,
 	buffer_size uint32) tools.Ret {
 	// read this block from the backing store, if it's not there, provide zeros in the buffer
 	// buffer_size is the number of bytes of data we should return
-	var r, foundresp, data = this.rawstore.Fetch(block_key) // read currentblock into writebuffer
+	var r, data = this.rawstore.Read(block_num) // read currentblock into writebuffer
 	if r != nil {
 		return r
-	}
-	if foundresp == false {
-		for i := range writebuffer {
-			writebuffer[i] = 0
-		}
-		return nil
 	}
 
 	/* we read data from the disk, run it through the pipeline */
@@ -103,7 +83,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_key string,
 				return ret
 			}
 		} else {
-			return tools.Error(this.log, "pipeline includes an element that isn't a data pipline: ", itemval)
+			return tools.Error(this.log, "pipeline includes an element that isn't a data pipeline: ", itemval)
 		}
 	} // for
 
@@ -122,10 +102,12 @@ func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_key string,
 	return nil
 }
 
-func (this *Zosbd2_slookup_i_storage_mechanism) write_one_block(block_key string, writebuffer []byte,
+xxxxzs got up to here.
+
+func (this *Zosbd2_slookup_i_storage_mechanism) write_one_block(block_num uint32, writebuffer []byte,
 	buffer_size uint32) tools.Ret {
-	// write this block to the backing store, if it's not there, insert, if it is there, update
-	// buffer_size is the number of bytes of data we should write from the incoming buffer
+	// write this block to the backing store, 
+		// buffer_size is the number of bytes of data we should write from the incoming buffer
 
 	if len(writebuffer) != int(buffer_size) {
 		return tools.Error(this.log, "invalid buffer length passed, buffer is: ", len(writebuffer), " but buffer size is: ", buffer_size)
@@ -148,7 +130,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) write_one_block(block_key string
 		}
 	}
 
-	var r = this.rawstore.Update_or_insert(block_key, writebuffer)
+	var r = this.rawstore.Write(block_num, writebuffer)
 	if r != nil {
 		return r
 	}
@@ -163,9 +145,9 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Read_block(start_in_bytes uint64
 	 * it will break up the possibly unaligned request into block aligned, block sized requests, and send back
 	 * the correct results of what the caller asked for. */
 
-	var stree_block_size = this.Get_block_size()
-	var currentblock uint64 = start_in_bytes / uint64(stree_block_size) // this is the first block we need to read partial or not.
-	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(stree_block_size))
+	var slookup_i_block_size = this.Get_block_size()
+	var currentblock uint64 = start_in_bytes / uint64(slookup_i_block_size) // this is the first block we need to read partial or not.
+	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(slookup_i_block_size))
 	/* for updating metadata to the new length of the object, remember if this is a file and not a block device
 	* objects can be any byte length, so we have to extend the object size to exactly the last byte written. */
 	// var endwritepos uint64 = start_in_bytes + uint64(length)
@@ -184,9 +166,8 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Read_block(start_in_bytes uint64
 	var howmuchread uint32 = 0
 	var dataoutcopypos uint32 = 0 // this is a running counter of where we copy to in the caller's buffer
 	for howmuchread < length {
-		var block_key = Generate_key_from_block_num(currentblock)
-		var readbuffer = make([]byte, stree_block_size)
-		var ret = this.read_one_block(block_key, readbuffer, stree_block_size) // or zeroes if it doesn't exist.
+		var readbuffer = make([]byte, slookup_i_block_size)
+		var ret = this.read_one_block(currentblock, readbuffer, slookup_i_block_size) // or zeroes if it doesn't exist.
 		if ret != nil {
 			return ret
 		}
@@ -216,7 +197,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Read_block(start_in_bytes uint64
 	return nil
 
 }
-
+xxxxxxxz
 func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint64, length uint32, data []byte) tools.Ret {
 	// swiped from objectstore.java
 
@@ -228,8 +209,8 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint6
 	 * For 1, 2 and 4, we have to do a read to get the existing block to update it. */
 
 	var stree_block_size = this.Get_block_size()
-	var currentblock uint64 = start_in_bytes / uint64(stree_block_size)
-	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(stree_block_size))
+	var currentblock uint64 = start_in_bytes / uint64(slookup_i_block_size)
+	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(slookup_i_block_size))
 	/* for updating metadata to the new length of the object, remember if this is a file and not a block device
 	 * objects can be any byte length, so we have to extend the object size to exactly the last byte written. */
 
@@ -252,12 +233,12 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint6
 			prefetch = true // case 1 and 4
 		}
 
-		var writebuffer []byte = make([]byte, stree_block_size)
+		var writebuffer []byte = make([]byte, slookup_i_block_size)
 
 		if prefetch {
 			// z.log.Debug("reading block ", currentblock, " length ", stree_block_size,
 			// 	" to update part of a block pos ", offsetinblock, " len ", remainingtowrite)
-			var r = this.read_one_block(block_key, writebuffer, stree_block_size)
+			var r = this.read_one_block(block_key, writebuffer, slookup_i_block_size)
 			if r != nil {
 				return r
 			}
@@ -286,7 +267,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint6
 		}
 		readpos += amounttowrite
 
-		var r = this.write_one_block(block_key, writebuffer, stree_block_size)
+		var r = this.write_one_block(block_key, writebuffer, slookup_i_block_size)
 		if r != nil {
 			return r
 		}
@@ -316,8 +297,8 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 
 	var stree_block_size = this.Get_block_size()
 
-	var currentblock uint64 = start_in_bytes / uint64(stree_block_size)
-	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(stree_block_size))
+	var currentblock uint64 = start_in_bytes / uint64(slookup_i_block_size)
+	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(slookup_i_block_size))
 	var endwritepos uint64 = start_in_bytes + uint64(length)
 
 	if length == 0 {
@@ -345,7 +326,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 	var readpos int64 = 0 // where in the buffer we're reading from, can't be more than 1 meg let alone 2 gig, this is for padding spaces around unaligned discards
 
 	// this is what we write over the partiablly discarded block
-	var zeroes []byte = make([]byte, stree_block_size)
+	var zeroes []byte = make([]byte, slookup_i_block_size)
 
 	var discard_range_start int64 = -1
 	var discard_range_end int64 = -1
@@ -363,16 +344,16 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 			prefetch = true // case 1 and 4
 		}
 
-		var writebuffer []byte = make([]byte, stree_block_size)
+		var writebuffer []byte = make([]byte, slookup_i_block_size)
 		if prefetch {
-			var remainingtowriteinthisblock = uint64(stree_block_size) - uint64(offsetinblock)
+			var remainingtowriteinthisblock = uint64(slookup_i_block_size) - uint64(offsetinblock)
 			if remainingtowriteinthisblock > absoluteendwritepositionrelativetothisblock {
 				remainingtowriteinthisblock = absoluteendwritepositionrelativetothisblock
 			}
 			// we have a partial block, we need to zero out some end part of it.
 			this.log.Debug("for discard, reading block ", currentblock, " length ", stree_block_size,
 				" to update part of a block pos ", offsetinblock, " len ", remainingtowriteinthisblock)
-			var r = this.read_one_block(block_key, writebuffer, stree_block_size)
+			var r = this.read_one_block(block_key, writebuffer, slookup_i_block_size)
 			if r != nil {
 				return r
 			}
@@ -398,7 +379,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 			}
 			readpos += amounttowrite
 
-			var r = this.write_one_block(block_key, writebuffer, stree_block_size) // update half block on disk
+			var r = this.write_one_block(block_key, writebuffer, slookup_i_block_size) // update half block on disk
 			if r != nil {
 				return r
 			}
