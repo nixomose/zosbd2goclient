@@ -13,7 +13,7 @@ module github.com/nixomose/zosbd2goclient
 go 1.18
 
 require (
-	github.com/nixomose/nixomosegotools v0.0.0-20220529231952-c38fcdca5407
+	github.com/nixomose/nixomosegotools v0.0.0-20220601021307-4fef638de118
 	github.com/nixomose/stree_v v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.4.0
 )
