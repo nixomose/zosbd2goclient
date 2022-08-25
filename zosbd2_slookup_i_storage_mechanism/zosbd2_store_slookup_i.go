@@ -37,23 +37,22 @@ package zosbd2_slookup_i_storage_mechanism
 
 import (
 	"container/list"
-	"encoding/binary"
 
 	"github.com/nixomose/nixomosegotools/tools"
-	"github.com/nixomose/slookup_i_interfaces"
+	"github.com/nixomose/slookup_i/slookup_i_lib/slookup_i_src"
 	"github.com/nixomose/zosbd2goclient/zosbd2cmdlib/zosbd2interfaces"
 )
 
 type Zosbd2_slookup_i_storage_mechanism struct {
 	log           *tools.Nixomosetools_logger
-	rawstore      *slookup_i_lib/slookup_i // the zosbd2cmd backing store is an slookup_i that was already injected with a file/memory backing store
+	rawstore      *slookup_i_src.Slookup_i // the zosbd2cmd backing store is an slookup_i that was already injected with a file/memory backing store
 	data_pipeline *list.List
 }
 
 var _ zosbd2interfaces.Storage_mechanism = &Zosbd2_slookup_i_storage_mechanism{}
 var _ zosbd2interfaces.Storage_mechanism = (*Zosbd2_slookup_i_storage_mechanism)(nil)
 
-func New_zosbd2_storage_mechanism(log *tools.Nixomosetools_logger, slookup_i *slookup_i_lib.slookup_i,
+func New_zosbd2_storage_mechanism(log *tools.Nixomosetools_logger, slookup_i *slookup_i_src.Slookup_i,
 	data_pipeline *list.List) *Zosbd2_slookup_i_storage_mechanism {
 	var z Zosbd2_slookup_i_storage_mechanism
 	z.log = log
@@ -61,7 +60,6 @@ func New_zosbd2_storage_mechanism(log *tools.Nixomosetools_logger, slookup_i *sl
 	z.data_pipeline = data_pipeline
 	return &z
 }
-
 
 func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_num uint32, writebuffer []byte,
 	buffer_size uint32) tools.Ret {
@@ -105,12 +103,10 @@ func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_num uint32,
 	return nil
 }
 
-xxxxzs got up to here.
-
 func (this *Zosbd2_slookup_i_storage_mechanism) write_one_block(block_num uint32, writebuffer []byte,
 	buffer_size uint32) tools.Ret {
-	// write this block to the backing store, 
-		// buffer_size is the number of bytes of data we should write from the incoming buffer
+	// write this block to the backing store,
+	// buffer_size is the number of bytes of data we should write from the incoming buffer
 
 	if len(writebuffer) != int(buffer_size) {
 		return tools.Error(this.log, "invalid buffer length passed, buffer is: ", len(writebuffer), " but buffer size is: ", buffer_size)
