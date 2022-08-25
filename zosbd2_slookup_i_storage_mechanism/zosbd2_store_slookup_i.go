@@ -61,7 +61,7 @@ func New_zosbd2_storage_mechanism(log *tools.Nixomosetools_logger, slookup_i *sl
 	return &z
 }
 
-func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_num uint32, writebuffer []byte,
+func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_num uint32, writebuffer *[]byte,
 	buffer_size uint32) tools.Ret {
 	// read this block from the backing store, if it's not there, provide zeros in the buffer
 	// buffer_size is the number of bytes of data we should return
@@ -79,7 +79,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_num uint32,
 		if ok && pipline_element != nil {
 			/* these all update in place, so they must resize the writebuffer to the actual size of the data
 			after it is mutated */
-			var ret = pipline_element.Pipe_out(&data)
+			var ret = pipline_element.Pipe_out(data)
 			if ret != nil {
 				return ret
 			}
@@ -89,27 +89,28 @@ func (this *Zosbd2_slookup_i_storage_mechanism) read_one_block(block_num uint32,
 	} // for
 
 	// so much copying, sigh
-	var copied = copy(writebuffer, data)
-	if copied != len(writebuffer) {
-		return tools.Error(this.log, "unable to copy entire block for read block, got ", copied, " of ", len(writebuffer))
+	var copied = copy(*writebuffer, *data)
+	if copied != len(*writebuffer) {
+		return tools.Error(this.log, "unable to copy entire block for read block, got ", copied, " of ", len(*writebuffer))
 	}
 
-	if len(writebuffer) != int(buffer_size) {
-		return tools.Error(this.log, "error reading block: ", block_key,
-			", the final length of the block: ", len(writebuffer), " doesn't match the expected block size: ",
+	if len(*writebuffer) != int(buffer_size) {
+		return tools.Error(this.log, "error reading block: ", block_num,
+			", the final length of the block: ", len(*writebuffer), " doesn't match the expected block size: ",
 			buffer_size)
 	}
 
 	return nil
 }
 
-func (this *Zosbd2_slookup_i_storage_mechanism) write_one_block(block_num uint32, writebuffer []byte,
+func (this *Zosbd2_slookup_i_storage_mechanism) write_one_block(block_num uint32, writebuffer *[]byte,
 	buffer_size uint32) tools.Ret {
 	// write this block to the backing store,
 	// buffer_size is the number of bytes of data we should write from the incoming buffer
 
-	if len(writebuffer) != int(buffer_size) {
-		return tools.Error(this.log, "invalid buffer length passed, buffer is: ", len(writebuffer), " but buffer size is: ", buffer_size)
+	if len(*writebuffer) != int(buffer_size) {
+		return tools.Error(this.log, "invalid buffer length passed, buffer is: ", len(*writebuffer),
+			" but buffer size is: ", buffer_size)
 	}
 
 	/* run it through the pipeline */
@@ -120,7 +121,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) write_one_block(block_num uint32
 		// in go you must check for nil before casting to the list entry's type for some reason or it will panic
 		if ok && pipline_element != nil {
 			/* these all update in place, so they must resize the writebuffer to the actual size of the data to write */
-			var ret = pipline_element.Pipe_in(&writebuffer)
+			var ret = pipline_element.Pipe_in(writebuffer)
 			if ret != nil {
 				return ret
 			}
@@ -139,19 +140,20 @@ func (this *Zosbd2_slookup_i_storage_mechanism) write_one_block(block_num uint32
 
 /* These functions have to break the large read into slookup_i sized chunks and read or write them all */
 
-func (this *Zosbd2_slookup_i_storage_mechanism) Read_block(start_in_bytes uint64, length uint32, data []byte) tools.Ret {
+func (this *Zosbd2_slookup_i_storage_mechanism) Read_block(start_in_bytes uint64, length uint32, data *[]byte) tools.Ret {
 	/* This function will perform a read of any byte position and length, spanning block boundaries if necessary.
 	 * it will break up the possibly unaligned request into block aligned, block sized requests, and send back
 	 * the correct results of what the caller asked for. */
 
 	var slookup_i_block_size = this.Get_block_size()
-	var currentblock uint64 = start_in_bytes / uint64(slookup_i_block_size) // this is the first block we need to read partial or not.
+	var currentblock64 uint64 = start_in_bytes / uint64(slookup_i_block_size) // this is the first block we need to read partial or not.
+	var currentblock uint32 = uint32(currentblock64)
 	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(slookup_i_block_size))
 	/* for updating metadata to the new length of the object, remember if this is a file and not a block device
 	* objects can be any byte length, so we have to extend the object size to exactly the last byte written. */
 	// var endwritepos uint64 = start_in_bytes + uint64(length)
 
-	if len(data) < int(length) {
+	if len(*data) < int(length) {
 		return tools.Error(this.log, "Invalid read request, not enough storage supplied to read ", length, " bytes.")
 	}
 
@@ -166,21 +168,21 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Read_block(start_in_bytes uint64
 	var dataoutcopypos uint32 = 0 // this is a running counter of where we copy to in the caller's buffer
 	for howmuchread < length {
 		var readbuffer = make([]byte, slookup_i_block_size)
-		var ret = this.read_one_block(currentblock, readbuffer, slookup_i_block_size) // or zeroes if it doesn't exist.
+		var ret = this.read_one_block(currentblock, &readbuffer, slookup_i_block_size) // or zeroes if it doesn't exist.
 		if ret != nil {
 			return ret
 		}
 
 		var start uint32 = offsetinblock                // for first block, start in middle if need be
 		var end uint32 = start + (length - howmuchread) // absolute end position in buffer
-		if end > stree_block_size {
-			end = stree_block_size
+		if end > slookup_i_block_size {
+			end = slookup_i_block_size
 		}
 		var amounttoread uint32 = end - start
 
 		// copy this part of this block to the caller's buffer as appropriate
 		var readpos uint32 = start
-		var copied = copy(data[dataoutcopypos:dataoutcopypos+amounttoread], readbuffer[readpos:])
+		var copied = copy((*data)[dataoutcopypos:dataoutcopypos+amounttoread], readbuffer[readpos:])
 		if copied != int(amounttoread) {
 			return tools.Error(this.log, "copying block portion didn't copy entire portion, only copied ", copied, " of ", amounttoread)
 		}
@@ -197,7 +199,8 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Read_block(start_in_bytes uint64
 
 }
 
-func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint64, length uint32, data []byte) tools.Ret {
+func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint64, length uint32,
+	data *[]byte) tools.Ret {
 	// swiped from objectstore.java
 
 	/* So the four pieces are:
@@ -207,8 +210,9 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint6
 	 * 4) piece start at the beginning of a block, ends in the middle of a different block.
 	 * For 1, 2 and 4, we have to do a read to get the existing block to update it. */
 
-	var stree_block_size = this.Get_block_size()
-	var currentblock uint64 = start_in_bytes / uint64(slookup_i_block_size)
+	var slookup_i_block_size = this.Get_block_size()
+	var currentblock64 uint64 = start_in_bytes / uint64(slookup_i_block_size)
+	var currentblock uint32 = uint32(currentblock64)
 	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(slookup_i_block_size))
 	/* for updating metadata to the new length of the object, remember if this is a file and not a block device
 	 * objects can be any byte length, so we have to extend the object size to exactly the last byte written. */
@@ -220,7 +224,6 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint6
 	var written uint32 = 0 // we're given a buffer to write, can't be more than 2 gig, unlike discard which can be 2 gig.
 	var readpos uint32 = 0 // where in the buffer we're reading from, can't be more than 1 meg let alone 2 gig
 	for written < length {
-		var block_key = Generate_key_from_block_num(currentblock)
 		var remainingtowrite uint32 = length - written
 		var absoluteendwritepositionrelativetothisblock uint32 = offsetinblock + remainingtowrite
 
@@ -228,7 +231,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint6
 		if offsetinblock > 0 { // case 1 and 2
 			prefetch = true
 		}
-		if absoluteendwritepositionrelativetothisblock < stree_block_size {
+		if absoluteendwritepositionrelativetothisblock < slookup_i_block_size {
 			prefetch = true // case 1 and 4
 		}
 
@@ -237,7 +240,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint6
 		if prefetch {
 			// z.log.Debug("reading block ", currentblock, " length ", stree_block_size,
 			// 	" to update part of a block pos ", offsetinblock, " len ", remainingtowrite)
-			var r = this.read_one_block(block_key, writebuffer, slookup_i_block_size)
+			var r = this.read_one_block(currentblock, &writebuffer, slookup_i_block_size)
 			if r != nil {
 				return r
 			}
@@ -251,22 +254,22 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Write_block(start_in_bytes uint6
 		this never really happens for writes, but it does for discard. */
 		var start uint32 = offsetinblock            // the start of where to write in this block's buffer
 		var end uint32 = start + (length - written) // the absolute end position in this buffer
-		if end > stree_block_size {
-			end = stree_block_size
+		if end > slookup_i_block_size {
+			end = slookup_i_block_size
 		}
 
 		var amounttowrite uint32 = end - start
 
 		// fill up the write buffer as appropriate
 
-		var copied = uint32(copy(writebuffer[start:end], data[readpos:readpos+amounttowrite]))
+		var copied = uint32(copy(writebuffer[start:end], (*data)[readpos:readpos+amounttowrite]))
 		if copied != (end - start) {
 			this.log.Error("we didn't copy all the data we wanted to. expected: ", end-start,
 				" copied: ", copied)
 		}
 		readpos += amounttowrite
 
-		var r = this.write_one_block(block_key, writebuffer, slookup_i_block_size)
+		var r = this.write_one_block(currentblock, &writebuffer, slookup_i_block_size)
 		if r != nil {
 			return r
 		}
@@ -294,9 +297,10 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 	   up with the discard request that comes in because it can cover a vast swath of disk. */
 	this.log.Debug("got discard request for start: ", start_in_bytes, " length: ", length)
 
-	var stree_block_size = this.Get_block_size()
+	var slookup_i_block_size = this.Get_block_size()
 
-	var currentblock uint64 = start_in_bytes / uint64(slookup_i_block_size)
+	var currentblock64 uint64 = start_in_bytes / uint64(slookup_i_block_size)
+	var currentblock uint32 = uint32(currentblock64)
 	var offsetinblock uint32 = uint32(uint64(start_in_bytes) % uint64(slookup_i_block_size))
 	var endwritepos uint64 = start_in_bytes + uint64(length)
 
@@ -331,7 +335,6 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 	var discard_range_end int64 = -1
 	// consider the case where these never get set because we're discarding something tiny
 	for written < int64(length) {
-		var block_key = Generate_key_from_block_num(currentblock)
 		var remainingtowrite uint64 = uint64(length) - uint64(written)
 		var absoluteendwritepositionrelativetothisblock uint64 = uint64(offsetinblock) + remainingtowrite // xxxzoverflow
 
@@ -339,7 +342,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 		if offsetinblock > 0 { // case 1 and 2
 			prefetch = true
 		}
-		if absoluteendwritepositionrelativetothisblock < uint64(stree_block_size) {
+		if absoluteendwritepositionrelativetothisblock < uint64(slookup_i_block_size) {
 			prefetch = true // case 1 and 4
 		}
 
@@ -350,9 +353,9 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 				remainingtowriteinthisblock = absoluteendwritepositionrelativetothisblock
 			}
 			// we have a partial block, we need to zero out some end part of it.
-			this.log.Debug("for discard, reading block ", currentblock, " length ", stree_block_size,
+			this.log.Debug("for discard, reading block ", currentblock, " length ", slookup_i_block_size,
 				" to update part of a block pos ", offsetinblock, " len ", remainingtowriteinthisblock)
-			var r = this.read_one_block(block_key, writebuffer, slookup_i_block_size)
+			var r = this.read_one_block(currentblock, &writebuffer, slookup_i_block_size)
 			if r != nil {
 				return r
 			}
@@ -363,8 +366,8 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 
 		var start uint64 = uint64(offsetinblock)                   // the start of where to write in this block's buffer
 		var end uint64 = start + uint64((int64(length) - written)) // the absolute end position in this buffer, 3/19/2022 for discard of really large almost 2^32 lengths this overflows
-		if end > uint64(stree_block_size) {
-			end = uint64(stree_block_size)
+		if end > uint64(slookup_i_block_size) {
+			end = uint64(slookup_i_block_size)
 		}
 		var amounttowrite int64 = int64(end) - int64(start)
 
@@ -378,7 +381,7 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 			}
 			readpos += amounttowrite
 
-			var r = this.write_one_block(block_key, writebuffer, slookup_i_block_size) // update half block on disk
+			var r = this.write_one_block(currentblock, &writebuffer, slookup_i_block_size) // update half block on disk
 			if r != nil {
 				return r
 			}
@@ -404,10 +407,20 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 		   So the zos version of this that I got this from was able to to a sweeping delete in one
 			 call, but slookup_i doesn't have that so we just loop through the blocks anyway. maybe
 			 someday there will be a one shot way of doing this... */
-		for currentblock = uint64(discard_range_start); currentblock <= uint64(discard_range_end); currentblock++ {
-			var block_key = Generate_key_from_block_num(currentblock)
+		for currentblock = uint32(discard_range_start); currentblock <= uint32(discard_range_end); currentblock++ {
 			this.log.Debug("discard deleting block: ", currentblock)
-			this.rawstore.Delete(block_key, false) // not found is not an error here.
+			/* hmmm... this is going to be interesting.
+			for stree this was just delete-the-block for this block key. there is no equivalent in slookup_i
+			because all entrys always exist all the time. what needs to happen is we have to delete any blocks
+			that those entries might be pointing to. so basically we have to write a zero length value to that block
+			which will cause update to resize the block_group to zero and delete any allocated blocks in it. */
+			/* now the topic of is an error a failure comes up again. In this case, I think it is, because while this is
+			   just an optmization to free space, if the write transaction fails, something is wrong, and we shouldn't just
+			   blindly paper over it. */
+			var ret tools.Ret
+			if ret = this.rawstore.Write(currentblock, nil); ret != nil {
+				return ret
+			}
 		}
 		this.log.Debug("finished discard for pos: ", (endwritepos - uint64(length)), ", len: ", length)
 	}
@@ -418,6 +431,6 @@ func (this *Zosbd2_slookup_i_storage_mechanism) Discard_block(start_in_bytes uin
 func (this *Zosbd2_slookup_i_storage_mechanism) Get_block_size() uint32 {
 	/* this is actually not the stree_node_value size, but the size one tree element
 	can hold which is the value_size * (additional nodes per block + 1) */
-	var block_size = this.rawstore.Get_node_size_in_bytes()
+	var block_size = this.rawstore.Get_data_block_size_in_bytes()
 	return block_size
 }

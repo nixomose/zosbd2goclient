@@ -77,7 +77,7 @@ func /* (this *Zosbd2_stree_v_storage_mechanism) */ Generate_key_from_block_num(
 	return string(ba)
 }
 
-func (this *Zosbd2_stree_v_storage_mechanism) read_one_block(block_key string, writebuffer []byte,
+func (this *Zosbd2_stree_v_storage_mechanism) read_one_block(block_key string, writebuffer *[]byte,
 	buffer_size uint32) tools.Ret {
 	// read this block from the backing store, if it's not there, provide zeros in the buffer
 	// buffer_size is the number of bytes of data we should return
@@ -86,8 +86,8 @@ func (this *Zosbd2_stree_v_storage_mechanism) read_one_block(block_key string, w
 		return r
 	}
 	if foundresp == false {
-		for i := range writebuffer {
-			writebuffer[i] = 0
+		for i := range *writebuffer {
+			(*writebuffer)[i] = 0
 		}
 		return nil
 	}
@@ -111,27 +111,27 @@ func (this *Zosbd2_stree_v_storage_mechanism) read_one_block(block_key string, w
 	} // for
 
 	// so much copying, sigh
-	var copied = copy(writebuffer, data)
-	if copied != len(writebuffer) {
-		return tools.Error(this.log, "unable to copy entire block for read block, got ", copied, " of ", len(writebuffer))
+	var copied = copy(*writebuffer, data)
+	if copied != len(*writebuffer) {
+		return tools.Error(this.log, "unable to copy entire block for read block, got ", copied, " of ", len(*writebuffer))
 	}
 
-	if len(writebuffer) != int(buffer_size) {
+	if len(*writebuffer) != int(buffer_size) {
 		return tools.Error(this.log, "error reading block: ", block_key,
-			", the final length of the block: ", len(writebuffer), " doesn't match the expected block size: ",
+			", the final length of the block: ", len(*writebuffer), " doesn't match the expected block size: ",
 			buffer_size)
 	}
 
 	return nil
 }
 
-func (this *Zosbd2_stree_v_storage_mechanism) write_one_block(block_key string, writebuffer []byte,
+func (this *Zosbd2_stree_v_storage_mechanism) write_one_block(block_key string, writebuffer *[]byte,
 	buffer_size uint32) tools.Ret {
 	// write this block to the backing store, if it's not there, insert, if it is there, update
 	// buffer_size is the number of bytes of data we should write from the incoming buffer
 
-	if len(writebuffer) != int(buffer_size) {
-		return tools.Error(this.log, "invalid buffer length passed, buffer is: ", len(writebuffer), " but buffer size is: ", buffer_size)
+	if len(*writebuffer) != int(buffer_size) {
+		return tools.Error(this.log, "invalid buffer length passed, buffer is: ", len(*writebuffer), " but buffer size is: ", buffer_size)
 	}
 
 	/* run it through the pipeline */
@@ -142,7 +142,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) write_one_block(block_key string, 
 		// in go you must check for nil before casting to the list entry's type for some reason or it will panic
 		if ok && pipline_element != nil {
 			/* these all update in place, so they must resize the writebuffer to the actual size of the data to write */
-			var ret = pipline_element.Pipe_in(&writebuffer)
+			var ret = pipline_element.Pipe_in(writebuffer)
 			if ret != nil {
 				return ret
 			}
@@ -151,7 +151,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) write_one_block(block_key string, 
 		}
 	}
 
-	var r = this.rawstore.Update_or_insert(block_key, writebuffer)
+	var r = this.rawstore.Update_or_insert(block_key, *writebuffer)
 	if r != nil {
 		return r
 	}
@@ -161,7 +161,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) write_one_block(block_key string, 
 
 /* These functions have to break the large read into stree_v sized chunks and read or write them all */
 
-func (this *Zosbd2_stree_v_storage_mechanism) Read_block(start_in_bytes uint64, length uint32, data []byte) tools.Ret {
+func (this *Zosbd2_stree_v_storage_mechanism) Read_block(start_in_bytes uint64, length uint32, data *[]byte) tools.Ret {
 	/* This function will perform a read of any byte position and length, spanning block boundaries if necessary.
 	 * it will break up the possibly unaligned request into block aligned, block sized requests, and send back
 	 * the correct results of what the caller asked for. */
@@ -173,7 +173,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) Read_block(start_in_bytes uint64, 
 	* objects can be any byte length, so we have to extend the object size to exactly the last byte written. */
 	// var endwritepos uint64 = start_in_bytes + uint64(length)
 
-	if len(data) < int(length) {
+	if len(*data) < int(length) {
 		return tools.Error(this.log, "Invalid read request, not enough storage supplied to read ", length, " bytes.")
 	}
 
@@ -189,7 +189,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) Read_block(start_in_bytes uint64, 
 	for howmuchread < length {
 		var block_key = Generate_key_from_block_num(currentblock)
 		var readbuffer = make([]byte, stree_block_size)
-		var ret = this.read_one_block(block_key, readbuffer, stree_block_size) // or zeroes if it doesn't exist.
+		var ret = this.read_one_block(block_key, &readbuffer, stree_block_size) // or zeroes if it doesn't exist.
 		if ret != nil {
 			return ret
 		}
@@ -203,7 +203,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) Read_block(start_in_bytes uint64, 
 
 		// copy this part of this block to the caller's buffer as appropriate
 		var readpos uint32 = start
-		var copied = copy(data[dataoutcopypos:dataoutcopypos+amounttoread], readbuffer[readpos:])
+		var copied = copy((*data)[dataoutcopypos:dataoutcopypos+amounttoread], readbuffer[readpos:])
 		if copied != int(amounttoread) {
 			return tools.Error(this.log, "copying block portion didn't copy entire portion, only copied ", copied, " of ", amounttoread)
 		}
@@ -220,7 +220,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) Read_block(start_in_bytes uint64, 
 
 }
 
-func (this *Zosbd2_stree_v_storage_mechanism) Write_block(start_in_bytes uint64, length uint32, data []byte) tools.Ret {
+func (this *Zosbd2_stree_v_storage_mechanism) Write_block(start_in_bytes uint64, length uint32, data *[]byte) tools.Ret {
 	// swiped from objectstore.java
 
 	/* So the four pieces are:
@@ -260,7 +260,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) Write_block(start_in_bytes uint64,
 		if prefetch {
 			// z.log.Debug("reading block ", currentblock, " length ", stree_block_size,
 			// 	" to update part of a block pos ", offsetinblock, " len ", remainingtowrite)
-			var r = this.read_one_block(block_key, writebuffer, stree_block_size)
+			var r = this.read_one_block(block_key, &writebuffer, stree_block_size)
 			if r != nil {
 				return r
 			}
@@ -282,14 +282,14 @@ func (this *Zosbd2_stree_v_storage_mechanism) Write_block(start_in_bytes uint64,
 
 		// fill up the write buffer as appropriate
 
-		var copied = uint32(copy(writebuffer[start:end], data[readpos:readpos+amounttowrite]))
+		var copied = uint32(copy(writebuffer[start:end], (*data)[readpos:readpos+amounttowrite]))
 		if copied != (end - start) {
 			this.log.Error("we didn't copy all the data we wanted to. expected: ", end-start,
 				" copied: ", copied)
 		}
 		readpos += amounttowrite
 
-		var r = this.write_one_block(block_key, writebuffer, stree_block_size)
+		var r = this.write_one_block(block_key, &writebuffer, stree_block_size)
 		if r != nil {
 			return r
 		}
@@ -375,7 +375,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) Discard_block(start_in_bytes uint6
 			// we have a partial block, we need to zero out some end part of it.
 			this.log.Debug("for discard, reading block ", currentblock, " length ", stree_block_size,
 				" to update part of a block pos ", offsetinblock, " len ", remainingtowriteinthisblock)
-			var r = this.read_one_block(block_key, writebuffer, stree_block_size)
+			var r = this.read_one_block(block_key, &writebuffer, stree_block_size)
 			if r != nil {
 				return r
 			}
@@ -401,7 +401,7 @@ func (this *Zosbd2_stree_v_storage_mechanism) Discard_block(start_in_bytes uint6
 			}
 			readpos += amounttowrite
 
-			var r = this.write_one_block(block_key, writebuffer, stree_block_size) // update half block on disk
+			var r = this.write_one_block(block_key, &writebuffer, stree_block_size) // update half block on disk
 			if r != nil {
 				return r
 			}

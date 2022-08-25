@@ -681,7 +681,8 @@ func (this *Kmod) Respond_to_read_request(fd *os.File, handle_id uint32, request
 	   userspacedatabuffer, but at least we don't have to copy or serialize all the data.
 		 good news, the main run function already did this and passed it in */
 
-	ret = storage.Read_block(entire_start, entire_length, kernelbuffer[this.m_sizeof_op:]) // so much for our data to kernelbuffer helper
+	var kb = kernelbuffer[this.m_sizeof_op:]
+	ret = storage.Read_block(entire_start, entire_length, &kb) // so much for our data to kernelbuffer helper
 	if ret != nil {
 		this.m_log.Error("Error from storage.read_block, error: ", ret.Get_errmsg(), ", ", ret.Get_errcode())
 		responseop.Error = int32(ret.Get_errcode()) // we have to return a successful read response with an error reported in it.
@@ -801,7 +802,8 @@ func (this *Kmod) Respond_to_write_request(fd *os.File, handle_id uint32, reques
 
 	// xxxz check and make sure we're not going past total_length_of_all_bio_segments, that's the max size of the available buffer to read stuff from.
 
-	ret = storage.Write_block(entire_start, entire_length, kernelbuffer[this.m_sizeof_op:]) // so much for datatokernel helper
+	var kb = kernelbuffer[this.m_sizeof_op:]
+	ret = storage.Write_block(entire_start, entire_length, &kb) // so much for datatokernel helper
 	if ret != nil {
 		this.m_log.Error("Error from storage.write_block, error: ", ret.Get_errmsg(), ", ", ret.Get_errcode())
 		responseop.Error = int32(ret.Get_errcode())
