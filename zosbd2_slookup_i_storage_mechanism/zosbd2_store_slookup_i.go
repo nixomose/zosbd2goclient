@@ -6,8 +6,6 @@
 this class implements the zosbd2 storage mechanism interface for slookup_i
 
 
-
-
 which looks like this
 
 
@@ -29,6 +27,11 @@ local block device -> storage mechanism (slookup_i) -> backingstore (file/block 
 
 slookup is a bit simpler than stree_v. there are no keys, it's just a block number.
 
+
+so this thing wraps an slookup_i so that slookup doesn't have to implement an interface
+it just is an slookup.
+this thing (zosbd2 store lookup) *does* implement an interface that can be replaced with a memstore for
+testing.
 */
 package zosbd2_slookup_i_storage_mechanism
 
