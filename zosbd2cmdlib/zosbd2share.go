@@ -21,14 +21,16 @@ package zosbd2cmdlib
 	 module version or nothing's going to work right. So if you make a change there, you have to make
 	 a change here. */
 
-const kmod_block_size int = 4096 // all zosbd2 blocks are 4k. period.
+// const kmod_block_size int = 4096 // all zosbd2 blocks are 4k. period.
 
 /* system wide constants */
 
 const MAX_DEVICE_NAME_LENGTH int = (DISK_NAME_LEN - 1) // from genhd.h, -1 for nt.
 
 const CREATE_DEVICE_MIN_NUMBER_BLOCK_COUNT int = 1024 // can't have less than this number of kernel_block_size blocks
+
 // apparently bindgen has a problem with this. it still makes this a u32
+
 const CREATE_DEVICE_MAX_NUMBER_BLOCK_COUNT uint64 = 3221225472 // blocks have to be at least 4k, so this is 12tb in 4k blocks, ~3.2 billion blocks
 
 const CREATE_DEVICE_MIN_TIMEOUT_SECONDS int = 1
@@ -40,6 +42,7 @@ const CREATE_DEVICE_MAX_ACTIVE_BLOCK_DEVICES int = 50 // we won't try to manage 
  * parallelism out of it as much of the time as possible. There may be more to tune. */
 /* 8/24/2020 it seems that mkfs.ext2 will in fact send 256 4k segments (1 meg) in one shot, so let's use 256 */
 // const MAX_BIO_SEGMENTS_PER_REQUEST 32 // the maximum number of bio segments the kernel side will send to userspace in one request
+
 const MAX_BIO_SEGMENTS_PER_REQUEST = 256                                                   // the maximum number of bio segments the kernel side will send to userspace in one request
 const MAX_BIO_SEGMENTS_BUFFER_SIZE_PER_REQUEST int = (MAX_BIO_SEGMENTS_PER_REQUEST * 4096) // the maximum buffer size of data for multiple segments we will ship to userspace in one go. This assumes 4k blocks will which not be true forever, but it is for now.
 
@@ -59,6 +62,7 @@ const IOCTL_CONTROL_STATUS_DEVICE_STATUS = 61 // return state of a single device
 
 // there's one ioctl command for all block device operations going to userspace.
 // the packet encodes what kind of operation it is.
+
 const IOCTL_DEVICE_PING = 53 // ping the device make sure it's here.
 
 const IOCTL_DEVICE_OPERATION = 58 // the main way to interact with the device for read/write(/trim, etc)
@@ -73,6 +77,7 @@ const DEVICE_OPERATION_DISCARD_RESPONSE = 38              // all other calls we 
 const DEVICE_OPERATION_STATUS = 39 // all other calls we are responding with data we wrote and return success or failure.
 
 /* zosbd2 operations from kernel to userspace. (part 1) */
+
 const DEVICE_OPERATION_KERNEL_BLOCK_FOR_REQUEST = 40 // only used in error cases to ask userspace to call us back to block
 const DEVICE_OPERATION_KERNEL_READ_REQUEST = 41
 const DEVICE_OPERATION_KERNEL_WRITE_REQUEST = 42
@@ -141,12 +146,12 @@ type control_block_device_destroy_all_params struct {
 	Force u32
 }
 
-type control_block_device_get_handle_id_by_name_params struct {
-	/* Params passed in from userspace needed to get a block device handle_id by name */
-	Device_name [MAX_DEVICE_NAME_LENGTH + 1]byte // the name of the device in /dev, +1 for nt.
-	Handle_id   u32                              // returned to userspace
-	Error       s32
-}
+// type control_block_device_get_handle_id_by_name_params struct {
+// 	/* Params passed in from userspace needed to get a block device handle_id by name */
+// 	Device_name [MAX_DEVICE_NAME_LENGTH + 1]byte // the name of the device in /dev, +1 for nt.
+// 	Handle_id   u32                              // returned to userspace
+// 	Error       s32
+// }
 
 type control_ping struct {
 	// no data for ping
@@ -273,5 +278,6 @@ type zosbd2_operation struct {
 }
 
 /* other constants, from ZOSDefs.java */
+
 const MAX_DISK_GROUP_LENGTH int = 64 // these are zen level things, there's probably some limit in zendemic already.
 const MAX_OBJECTID_LENGTH int = 1024 // just like s3

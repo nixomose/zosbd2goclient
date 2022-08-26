@@ -132,9 +132,9 @@ func (this *Block_device_handler) Run() tools.Ret {
 	we should be good. This is THE buffer used to shuttle requests to and from the kernel forever. */
 	//	var buffer *bytes.Buffer = bytes.NewBuffer(make([]byte, 0, alloc_size))
 	var kernelbuffer []byte = make([]byte, alloc_size)
-	if kernelbuffer == nil { // I seem to recall somebody saying this can't fail in go.
-		return tools.ErrorWithCode(this.m_log, -int(syscall.ENOMEM), "Unable to allocate memory for kernel zosbd2_operation: ", syscall.ENOMEM)
-	}
+	// if kernelbuffer == nil { // I seem to recall somebody saying this can't fail in go.
+	// 	return tools.ErrorWithCode(this.m_log, -int(syscall.ENOMEM), "Unable to allocate memory for kernel zosbd2_operation: ", syscall.ENOMEM)
+	// }
 
 	/* here is the problem, buffer is the serialized size of zosbd2_operation
 		 op is a pointer to that buffer with the type of zosbd2_operation and while in C they would

@@ -21,7 +21,7 @@ require (
 require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/ncw/directio v1.0.5 // indirect
-	github.com/nixomose/slookup_i v0.0.0-00010101000000-000000000000 // indirect
+	github.com/nixomose/slookup_i v0.0.0-00010101000000-000000000000
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 )
