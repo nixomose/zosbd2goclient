@@ -5,6 +5,17 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "slookup_i driver",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${fileDirname}",
+      "env": {
+        "DEBUG_AS_ROOT": "true"
+      },
+      "args": []
+    },
+    {
       "name": "diag dump header",
       "type": "go",
       "request": "launch",
