@@ -9,19 +9,19 @@ if ! which dlv ; then
   echo "add path $PATH" >> /tmp/d1
 fi
 if [ "$DEBUG_AS_ROOT" = "true" ]; then
-#  echo "debug as root" >> /tmp/d1
+  echo "debug as root" >> /tmp/d1
 	DLV=$(which dlv)
   DLV="/home/nixo/go/bin/dlv-dap"
   DLV="/home/nixo/go/bin/dlv"
 
 	echo "DIV=$DLV"  >> /tmp/d1
-	echo exec /usr/bin/sudo "$DLV" --only-same-user=false "$@" >> /tmp/d1
-       exec /usr/bin/sudo "$DLV" --only-same-user=false "$@"
- #      exec sudo "$DLV"  --only-same-user=false "$@"
+	echo exec /usr/bin/sudo PATH=$PATH:/usr/local/go/bin  "$DLV" --only-same-user=false "$@" >> /tmp/d1
+       exec /usr/bin/sudo PATH=$PATH:/usr/local/go/bin  "$DLV" --only-same-user=false "$@"
+       exec sudo "$DLV"  --only-same-user=false "$@"
 
 
 else
-#  echo "not debug as root" >> /tmp/d1
+  echo "not debug as root" >> /tmp/d1
 	exec "/home/nixo/go/bin/dlv" "$@"
 fi
-#echo "exiting" >> /tmp/d1
+echo "exiting" >> /tmp/d1
