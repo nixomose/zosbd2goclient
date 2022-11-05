@@ -13,6 +13,13 @@
       "env": {
         "DEBUG_AS_ROOT": "true"
       },
+      "dlvLoadConfig": {
+        "followPointers": true,
+        "maxVariableRecurse": 1,
+        "maxStringLen": 400,
+        "maxArrayValues": 2000,
+        "maxStructFields": -1
+      },
       "args": []
     },
     {
